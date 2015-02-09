@@ -25,6 +25,7 @@ module Cisco
 			@results = []
 			@ssh = Net::SSH.start(*@sshargs)
 			@ssh.open_channel do |chan|
+				chan.request_pty
 				chan.send_channel_request("shell") do |ch, success|
 					if !success
 						abort "Could not open shell channel"
