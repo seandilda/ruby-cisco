@@ -55,7 +55,9 @@ module Cisco
 		# handle the error.
 		def close(chn)
 			@done = true
-			chn.send_data("exit\n") unless (!chn.active? || chn.closing?)
+			10.times do
+				chn.send_data("exit\n") unless (!chn.active? || chn.closing?)
+			end
 		end
 
 		private
