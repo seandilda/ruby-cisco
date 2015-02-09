@@ -3,9 +3,9 @@ require 'net/ssh'
 module Cisco
 
 	class SSH
-	  
+
 	  include Common
-	
+
 		def initialize(options)
 		  @host    = options[:host]
 		  @user    = options[:user]
@@ -15,14 +15,15 @@ module Cisco
 		  @pwprompt = options[:pwprompt] || "Password:"
 		  @cmdbuf, @extra_init = [], []
 		end
-   	
+
    	def cmd(cmd, prompt = nil, &block)
 			@cmdbuf << [cmd + "\n", prompt, block]
 		end
-		
+
 		def run
 			@inbuf = ""
 			@results = []
+			@done = false
 			@ssh = Net::SSH.start(*@sshargs)
 			@ssh.open_channel do |chan|
 				chan.send_channel_request("shell") do |ch, success|
@@ -39,22 +40,26 @@ module Cisco
 					end
 				end
 			end
-			@ssh.loop
-			
+			begin
+				@ssh.loop
+			rescue Net::SSH::Disconnect
+				raise unless @done
+			end
+
 			@results
 		end
-		
-		# Disconnect the session. Either Net::SSH has a bug, or the Cisco implementation is sometimes whacky,
-		# causing an exception to be thrown when trying to close the channel via the SSH protocol. To get around
-		# this, this method simply sends "exit" until the device disconnects us.
+
+		# Disconnect the session. SSH on Cisco IOS will close the socket before
+		# the SSH session has fully terminated.  To catch this, we ask for a clean
+		# exit, but mark a flag that we're done so that #run will know to cleanly
+		# handle the error.
 		def close(chn)
-      10.times do
-        chn.send_data("exit\n") unless (!chn.active? || chn.closing?)
-      end
-    end
-		
+			@done = true
+			chn.send_data("exit\n") unless (!chn.active? || chn.closing?)
+		end
+
 		private
-				
+
 		def check_and_send(chn)
 			if @inbuf =~ @prompt
 				@results << @inbuf.gsub(Regexp.new("\r\n"), "\n")
@@ -79,5 +84,5 @@ module Cisco
 		end
 
 	end
-	
+
 end
